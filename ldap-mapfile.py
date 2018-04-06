@@ -67,10 +67,16 @@ for object_dn,attr in subject_list:
             # print "contsructed entry: {0}".format(mapfile_entry)
             if mapfile_entry in user_mapfile_lines:
                 print 'Mapfile => found match\n'
+                # any lines left in the list after this loop were not found in LDAP
+                user_mapfile_lines.remove(mapfile_entry)
             else:
                 print 'Mapfile => inserting new\n'
                 update = True
             mapfile_lines.add(mapfile_entry)
+
+        for rline in user_mapfile_lines:
+            print 'Mapfile => removed {0}'.format(rline)
+            update = True
 
     except KeyError:
         pass
