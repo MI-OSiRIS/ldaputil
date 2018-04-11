@@ -80,11 +80,11 @@ else:
     cert_list = ldap.get_certs(args.uid)
 
 if len(cert_list) == 0:
-    print "Error: No object with attr {0} matching {1} in {2}".format(ldap.uid_attr,args.uid,ldap.ldap_basedn)
+    print "Error: No object with attr {0} matching {1} in {2}".format(ldap.uid_attr,args.uid,ldap.ldap_userdn)
     sys.exit(1)
 
 if len(cert_list) > 1:
-    print "Error: Found more than one result with attr {0} matching {1} in {2} (this should not be possible)?".format(uid_attr,args.uid,ldap_basedn)
+    print "Error: Found more than one result with attr {0} matching {1} in {2} (this should not be possible)?".format(uid_attr,args.uid,ldap_userdn)
     sys.exit(1)
 
 for object_dn,cert_dn in cert_list:

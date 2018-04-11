@@ -1,15 +1,27 @@
 # ldaputil
-Misc LDAP utilities used in OSiRIS related to managing CIlogon certificate subject DN attributes for LDAP users.  Defaults to using voPersonCertificateDN from voPerson schema but these are configurable.
+Misc LDAP utilities used in OSiRIS 
 
-## Utilities
+
+
+## Globus and CILogon utilities
+
+Tools related to managing CIlogon certificate subject DN attributes for LDAP users.  Defaults to using voPersonCertificateDN from voPerson schema but these are configurable.
 
  * ldap-cert.py
  
- Add or delete CILogon certificate subject DN, list uid and subjects.
+ Add, list, or delete CILogon certificate subject DN, list uid and subjects.
 
  * ldap-mapfile.py
 
 Generate Globus grid-mapfile from ldap.  Synchronizes gridmap entries with LDAP for any uid found in LDAP - gridmap entries which are not in LDAP will be deleted for those uid.  If uid in grid-mapfile does not exist in LDAP it is left as-is.  Default mapfile input and output is /etc/grid-security/grid-mapfile.  Input and output file can be specified with options and do not have to be the same file.  
+
+## NFSv4 Utilities
+
+Tools related to managing NFSv4 GSS auth lookup and name mapping with idmapd.conf 'umich_ldap' configuration.
+
+* ldap-nfs.py
+
+Add, list, or delete GSS auth names, remote users, and remote groups.  LDAP attributes used are configurable but default to same attributes as in default idmapd config.  This utility does not allow for setting NFSv4 remote user mappings that do not also have a GSS name to map to.  
 
 ## Config
 
@@ -38,7 +50,7 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  --delete              Delete specified DN from uid. Default is to add.
+  -d, --delete              Delete specified DN from uid. Default is to add.
   --relax               Do not perform checks or formatting on subject DN.
                         Intended for deleting malformed entries or testing.
   -c CONFIG, --config CONFIG
@@ -71,16 +83,72 @@ optional arguments:
   -f, --force           Force writing out file even if no changes found
 ```
 
-## Example 
+```
+usage: ldap-nfs.py [-h] [-c CONFIG] [-l] [-g] [-u USER] [-d] [id] [mapping]
+
+Utility to add GSSAuthName, NFSv4Name, NFSv4RemoteGroup to ldap
+
+positional arguments:
+  id                    User or group name string matching configured uid_attr
+                        or gid_attr in LDAP directory
+  mapping               Kerberos principal or NFSv4 remote group to be added
+                        to id
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -c CONFIG, --config CONFIG
+                        Optional path to config file (default
+                        ldaputil.conf)
+  -l, --list            List mappings for user argument or all users if none
+                        specified
+  -g, --group           Assign or list NFSv4 group mapping to id argument (default is
+                        to assign Kerberos principal set by mapping arg)
+  -u USER, --user USER  NFSv4 user mapping (user@idmap.domain.example). If not
+                        provided for a Kerberos mapping then the lowercased
+                        mapping value is used.
+  -d, --delete          Delete specified principal/group/remote user mapping
+                        (depending on args)
+```
+
+## Examples 
 
 Add certificate:
 ```
 ldap-cert.py user "/DC=org/DC=cilogon/C=US/O=University of Example/CN=Example User A1234"
 ```
 
+Delete cert for user (leave off subject to delete all user certs):
+```
+ldap-cert.py -d user "/DC=org/DC=cilogon/C=US/O=University of Example/CN=Example User A1234"
+```
+
 Generate mapfile (no options are required if reading/writing to default location):
 ```
 ldap-mapfile.py --mapfile /alt/location/grid-mapfile --output /etc/grid-security/grid-mapfile
+```
+
+Add /delete new GSS mapping for user@EXAMPLE.EDU.  The util will default to setting the NVSv4 idmap remote user to user@example.edu if not provided:
+```
+ldap-nfs.py myuser user@EXAMPLE.EDU
+
+ldap-nfs.py -d myuser user@EXAMPLE.EDU
+```
+
+Delete all mappings for user:
+```
+ldap-nfs.py -d myuser
+```
+
+Add / remove new remote user GSS name and id mapping:  
+```
+ldap-nfs.py myuser user@EXAMPLE.EDU -u someuser@example2.edu
+
+ldap-nfs.py -d myuser user@EXAMPLE.EDU -u someuser@example2.edu
+```
+
+Add new remote group mapping:
+```
+ldap-nfs.py -g mygroup somegroup@example.edu
 ```
 
 

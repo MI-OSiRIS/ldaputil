@@ -41,7 +41,7 @@ mapfile = open(args.mapfile, 'r')
 subject_list = ldap.get_certs('*')
 
 if len(subject_list) == 0:
-    print "Error: No object with attr {0} matching {1} in {2}".format(ldap.uid_attr,args.uid,ldap.ldap_basedn)
+    print "Error: No object with attr {0} matching {1} in {2}".format(ldap.uid_attr,args.uid,ldap.ldap_userdn)
     sys.exit(1)
 
 mapfile_lines = mapfile.readlines()
