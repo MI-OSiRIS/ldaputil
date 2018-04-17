@@ -127,7 +127,7 @@ Generate mapfile (no options are required if reading/writing to default location
 ldap-mapfile.py --mapfile /alt/location/grid-mapfile --output /etc/grid-security/grid-mapfile
 ```
 
-Add /delete new GSS mapping for user@EXAMPLE.EDU.  The util will default to setting the NVSv4 idmap remote user to user@example.edu if not provided:
+Add /delete new GSS mapping.  The util will default to setting the NVSv4 idmap remote user to user<i></i>@example.edu if not provided:
 ```
 ldap-nfs.py myuser user@EXAMPLE.EDU
 

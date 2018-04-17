@@ -67,10 +67,14 @@ class LdapUtil:
             
 
     # pass uid * to get all subject DN attributes
-    def get_certs(self,uid):
+    def get_certs(self,uid, subject=None):
+        sf = '({0}={1})'.format(self.uid_attr,uid)
+        if subject:
+            sf = '(&{0}({1}={2}))'.format(sf,self.subj_attr, subject)
+
         return self.ldap.search_s(self.ldap_userdn,
                                 ldap.SCOPE_SUBTREE,
-                                '({0}={1})'.format(self.uid_attr,uid), 
+                                sf, 
                                 [self.uid_attr,self.subj_attr])
 
     def rm_cert(self,dn,subject):
@@ -274,6 +278,13 @@ class LdapUtil:
         for dn,attr in entries:
             for gidnumber in attr[self.gidnumber_attr]:
                 print '\t{0} => {1}'.format(self.nfs_name_attr,','.join(attr[self.nfs_name_attr]))
+
+    def format_cert_entries(self,entries):
+        for object_dn,attr in entries:
+            if self.subj_attr in attr:
+                print attr[self.uid_attr][0] + ':'
+                for cert in attr[self.subj_attr]:
+                    print '\t{0}'.format(cert)
     
 
 
