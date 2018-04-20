@@ -5,6 +5,7 @@
 import ConfigParser
 import ldap
 import ldap.modlist
+import ldap.dn
 
 class LdapUtil:
 
@@ -149,39 +150,50 @@ class LdapUtil:
                             sf,
                             [self.nfs_name_attr, self.gidnumber_attr])
 
-    # returns dn that was added/modified, or false if exists
+    # returns list of modifications or empty list if no action required
+    # decisions here somewhat revolve around ensuring any given GSS name is used only once - the idmap lookup will fail if 2 results are found
     def add_user_mapping(self,uidNumber,gidNumber,gssname,nfsname=None):
 
         if nfsname == None:
             nfsname = gssname.lower()
 
         dn = 'cn={0},{1}'.format(nfsname,self.nfs_user_basedn)
-        existing = self.get_user_mappings(uidNumber,nfsname=nfsname)
+       
+        # retrieve object(s) with matching GSS user attribute to make sure we don't create a duplicate
+        existing = self.get_user_mappings(uidNumber,gssname)
 
         if len(existing) > 1:
-            raise Exception("Requested NFSv4 remote user exists but there are multiple mappings defined between {0} and {1} with differing CN - please remove duplicates".format(uidNumber,nfsname))
-           
+            raise Exception("Found requested GSS name but there are multiple mappings defined between uidNumber {0} and {1} - you must remove the duplicates".format(uidNumber,gssname))
+
         try:
             for object_dn,attr in existing:
-                if gssname in attr[self.nfs_gss_attr]:
+                if nfsname in attr[self.nfs_name_attr]:
+                    # this object already matches the specified nfs remote user and has matching GSS name, nothing to do
                     return []
                 else:
-                    self.ldap.modify_s(object_dn, [(ldap.MOD_ADD,
-                                    self.nfs_gss_attr,
-                                    gssname)])
-                    return [(object_dn, {
-                        self.nfs_name_attr: attr[self.nfs_name_attr],
-                        self.nfs_gss_attr: [ gssname ],
-                        self.uidnumber_attr: attr[self.uidnumber_attr] })]
-                        
-        except KeyError:
-            # found an object with mapping but gss attribute not found with object, we need to continue and add it
-            pass
+                    # delete the mapping, may delete entire object if this is the last gss attribute on that object
+                    # object will be added later if necessary (this works out simpler than doing logic to rename dn sometimes)
+                    self.delete_user_mapping(uidNumber, gssname, attr[self.nfs_name_attr][0])
+        except KeyError as e:
+            # should be impossible, schema violation (unless using non-default schema?)
+            if e.args[0]  == self.nfs_name_attr:
+                raise Exception("Found object matching specifed GSS name but it has no attribute {0}".format(self.nfs_name_attr))       
 
-        # no existing mappings with that nfs name/uidNumber, create it
+        # retrieve object with matching NFSname to add attribute to (may be none) 
+        existing_nfsname = self.get_user_mappings(uidNumber,gssname=None,nfsname=nfsname)
+
+        for object_dn_nfsname,attr_nfsname in existing_nfsname:
+            self.ldap.modify_s(object_dn_nfsname, [(ldap.MOD_ADD,
+                    self.nfs_gss_attr,
+                    gssname)])
+            return [(object_dn_nfsname, {
+                self.nfs_name_attr: attr_nfsname[self.nfs_name_attr],
+                self.nfs_gss_attr: [ gssname ],
+                self.uidnumber_attr: attr_nfsname[self.uidnumber_attr] })]
+
+        # if we get this far it's time to create a new object with that GSSname and NFS user 
 
         attributes = {
-            #'objectClass': 'top',
             'objectClass': [ 'top', self.nfs_user_objectclass],
             self.uidnumber_attr: [ uidNumber],
             self.gidnumber_attr: [ gidNumber],
@@ -193,37 +205,37 @@ class LdapUtil:
         attr_modlist = ldap.modlist.addModlist(attributes)
 
         self.ldap.add_s(dn, attr_modlist)
-        return [(dn, attributes)]
+        return [(dn,attributes)]
 
     # delete with as much granularity as given by the arguments 
     # up to every usermapping for given uidNumber
-    def delete_user_mapping(self,idnumbers,gssname=None,nfsname=None):
+    def delete_user_mapping(self,uidNumber,gssname=None,nfsname=None):
         # returns a list of deleted objects
         deleted = list()
-        existing = self.get_user_mappings(idnumbers,gssname,nfsname)
+        existing = self.get_user_mappings(uidNumber,gssname,nfsname)
 
-        if len(existing) > 0:
-            for object_dn,attr in existing:
-                if gssname == None and nfsname == None:
+        for object_dn,attr in existing:
+            if gssname == None and nfsname == None:
+                self.ldap.delete_s(object_dn)
+                deleted.append((object_dn,attr))
+            elif not gssname and nfsname in attr[self.nfs_name_attr]:
+                self.ldap.delete(object_dn)
+                deleted.append((object_dn,attr))
+            elif gssname in attr[self.nfs_gss_attr]:
+                # if it's the last GSS attribute remove this object entirely
+                if len(attr[self.nfs_gss_attr]) == 1:
                     self.ldap.delete_s(object_dn)
                     deleted.append((object_dn,attr))
-                elif not gssname and nfsname in attr[self.nfs_name_attr]:
-                    self.ldap.delete(object_dn)
-                    deleted.append((object_dn,attr))
-                elif gssname in attr[self.nfs_gss_attr]:
-                    # if it's the last GSS attribute remove this object entirely
-                    if len(attr[self.nfs_gss_attr]) == 1:
-                        self.ldap.delete_s(object_dn)
-                        deleted.append((object_dn,attr))
-                    else:
-                        self.ldap.modify_s(object_dn, [(ldap.MOD_DELETE,
-                                        self.nfs_gss_attr,
-                                        gssname)])
-                        # create list similar to search results appended in object deletion case
-                        deleted.append((object_dn, { 
-                            self.nfs_name_attr:  attr[self.nfs_name_attr],
-                            self.nfs_gss_attr: [ gssname ],
-                            self.uidnumber_attr: attr[self.uidnumber_attr]}))
+                else:
+                    self.ldap.modify_s(object_dn, [(ldap.MOD_DELETE,
+                                    self.nfs_gss_attr,
+                                    gssname)])
+                    # create list similar to search results appended in object deletion case
+                    deleted.append((object_dn, { 
+                        self.nfs_name_attr:  attr[self.nfs_name_attr],
+                        self.nfs_gss_attr: [ gssname ],
+                        self.uidnumber_attr: attr[self.uidnumber_attr]}))
+
         return deleted
                
     def add_group_mapping(self,gidNumber,nfsname):
@@ -239,7 +251,6 @@ class LdapUtil:
         # no existing mappings with that nfs name/uidNumber, create it
 
         attributes = {
-            # 'objectClass': 'top',
             'objectClass': [ 'top', self.nfs_group_objectclass ],
             self.gidnumber_attr: [ gidNumber ],
             self.nfs_name_attr: [ nfsname] ,
@@ -271,8 +282,10 @@ class LdapUtil:
     def format_user_entries(self,entries):
         for dn,attr in entries:
             for uidnumber in attr[self.uidnumber_attr]:
-                for gssname in attr[self.nfs_gss_attr]:
-                    print '\t{0} => {1} : {2} => {3}'.format(self.nfs_gss_attr, gssname, self.nfs_name_attr, ','.join(attr[self.nfs_name_attr]))
+                for nfsname in attr[self.nfs_name_attr]:
+                    print '{0} => {1}'.format(self.nfs_name_attr, nfsname)
+                    for gssname in attr[self.nfs_gss_attr]:
+                        print '\t{0} => {1}'.format(self.nfs_gss_attr, gssname)
 
     def format_group_entries(self,entries):
         for dn,attr in entries:
@@ -285,9 +298,6 @@ class LdapUtil:
                 print attr[self.uid_attr][0] + ':'
                 for cert in attr[self.subj_attr]:
                     print '\t{0}'.format(cert)
-    
-
-
 
 
 

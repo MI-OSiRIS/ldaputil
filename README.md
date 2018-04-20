@@ -21,7 +21,7 @@ Tools related to managing NFSv4 GSS auth lookup and name mapping with idmapd.con
 
 * ldap-nfs.py
 
-Add, list, or delete GSS auth names, remote users, and remote groups.  LDAP attributes used are configurable but default to same attributes as in default idmapd config.  This utility does not allow for setting NFSv4 remote user mappings that do not also have a GSS name to map to.  
+Add, list, or delete GSS auth names, remote users, and remote groups.  LDAP attributes used are configurable but default to same attributes as in default idmapd config.  This utility does not allow for setting NFSv4 remote user mappings that do not also have a GSS name to map to.  It also will not allow setting GSS attributes identically on 2 different NFSv4 remote user objects - it doesn't work when the NFS server looks up a GSS name and finds two mappings.  
 
 ## Config
 

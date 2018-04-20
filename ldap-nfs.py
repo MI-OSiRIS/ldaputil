@@ -22,7 +22,6 @@ parser.add_argument('-c', '--config',
                     default=def_config,
                     help='Optional path to config file (default {0})'.format(def_config))
 
-
 action = parser.add_mutually_exclusive_group()
 
 action.add_argument('-d', '--delete',
@@ -86,7 +85,7 @@ for d in idnumbers:
             entries = ldap.get_group_mappings(d['gidnumber'],args.mapping)
         else:
             entries = ldap.get_user_mappings(d['uidnumber'], args.mapping, args.user)
-        if len(entries) == 0:
+        if args.list and len(entries) == 0:
             continue
     if args.delete:
         op = 'Deleted'
@@ -98,14 +97,17 @@ for d in idnumbers:
         else:
             entries = ldap.delete_user_mapping(d['uidnumber'], args.mapping, args.user)
     elif not args.list:
-        op = 'Added'
+        op = 'New'
         if args.group:
             entries = ldap.add_group_mapping(d['gidnumber'],args.mapping)
         else:
             entries = ldap.add_user_mapping(d['uidnumber'], d['gidnumber'], args.mapping, args.user)
 
     if len(entries) == 0:
-        print 'LDAP => Mapping exists, no action required'
+        if args.delete:
+            print 'LDAP => Mapping does not exist'
+        else:
+            print 'LDAP => Mapping exists'
         sys.exit(0)
 
     if args.group:
