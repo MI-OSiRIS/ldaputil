@@ -22,8 +22,8 @@ parser = argparse.ArgumentParser(description='Add new LDAP subject DN under voPe
 
 def dncheck(s):
     # hard-coding cilogon org until reason otherwise 
-    cilogon_dnregex = re.compile(r"/DC=org/DC=cilogon/C=[A-Z]{2}/O=.+/CN=.+")
-    ldap_dnregex = re.compile(r"CN=.+,O=.+,C=[A-Z]{2},DC=cilogon,DC=org")
+    cilogon_dnregex = re.compile(r"/DC=org/DC=cilogon(/C=[A-Z]{2})*/O=.+/CN=.+")
+    ldap_dnregex = re.compile(r"CN=.+,O=.+(,C=[A-Z]{2})*,DC=cilogon,DC=org")
 
     if ldap_dnregex.match(s) or args.relax:
         return s
@@ -104,7 +104,8 @@ for object_dn,cert_dn in cert_list:
                 if args.delete:
                     print '=> Deleting'
                     ldap.rm_cert(object_dn,certdn_value)
-                    if idx == len(cert_dn[ldap.subj_attr]):
+                    # reached end of the certificates on this ldap object, or only given a single cert to delete
+                    if idx == len(cert_dn[ldap.subj_attr]) or insert_cert != None:
                         break
                 else:
                     print '=> No action required'
